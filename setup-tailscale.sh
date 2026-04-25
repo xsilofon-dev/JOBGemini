@@ -9,16 +9,23 @@ curl -fsSL https://tailscale.com/install.sh | sudo sh
 echo "--- Налаштування директорії для сокета ---"
 sudo mkdir -p /var/run/tailscale
 
-echo "--- Запуск tailscaled у фоновому режимі (userspace) ---"
-# Запускаємо демон у фоні
+# Запуск tailscaled у фоновому режимі (userspace)
 sudo tailscaled --tun=userspace-networking --socket=/var/run/tailscale/tailscaled.sock > /tmp/tailscaled.log 2>&1 &
-
-# Чекаємо 2 секунди для запуску
 sleep 2
 
-echo "--- Авторизація ---"
-echo "Будь ласка, перейдіть за посиланням нижче для авторизації:"
+echo "--- Авторизація Tailscale ---"
 sudo tailscale --socket=/var/run/tailscale/tailscaled.sock up --force-reauth
 
-echo "--- Статус ---"
+echo "--- Монтування Google Drive (2TB+) ---"
+export PATH=$PATH:~/bin
+if [ ! -L /usr/bin/fusermount3 ]; then
+    sudo ln -s /usr/bin/fusermount /usr/bin/fusermount3
+fi
+mkdir -p ~/google-drive
+# Монтуємо у фоні з кешем для великих файлів
+rclone mount gdrive: ~/google-drive --vfs-cache-mode writes --daemon
+
+echo "--- Статус системи ---"
 sudo tailscale --socket=/var/run/tailscale/tailscaled.sock status
+df -h ~/google-drive
+
