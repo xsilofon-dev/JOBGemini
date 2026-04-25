@@ -25,6 +25,10 @@ mkdir -p ~/google-drive
 # Монтуємо у фоні з кешем для великих файлів
 rclone mount gdrive: ~/google-drive --vfs-cache-mode writes --daemon
 
+echo "--- Запуск вартового (Keep-Alive) ---"
+chmod +x ~/tailscale-setup/keep-alive-tailscale.sh
+nohup ~/tailscale-setup/keep-alive-tailscale.sh > /tmp/keepalive.log 2>&1 &
+
 echo "--- Статус системи ---"
 sudo tailscale --socket=/var/run/tailscale/tailscaled.sock status
 df -h ~/google-drive
