@@ -1,35 +1,39 @@
 #!/bin/bash
 
-# Скрипт для встановлення та запуску Tailscale у Google Cloud Shell
-# (використовує userspace-networking, оскільки Cloud Shell не має TUN/TAP)
+# Шляхи до персистентних бінарників та даних
+BIN_DIR="$HOME/bin"
+STATE_FILE="$HOME/.tailscale/tailscaled.state"
+SOCKET="/var/run/tailscale/tailscaled.sock"
 
-echo "--- Встановлення Tailscale ---"
-curl -fsSL https://tailscale.com/install.sh | sudo sh
-
-echo "--- Налаштування директорії для сокета ---"
+echo "--- Перевірка середовища ---"
+mkdir -p "$HOME/.tailscale"
 sudo mkdir -p /var/run/tailscale
 
-# Запуск tailscaled у фоновому режимі (userspace)
-sudo tailscaled --tun=userspace-networking --socket=/var/run/tailscale/tailscaled.sock > /tmp/tailscaled.log 2>&1 &
+# Запуск tailscaled з персистентним станом
+echo "--- Запуск tailscaled ---"
+sudo "$BIN_DIR/tailscaled" \
+    --tun=userspace-networking \
+    --socket="$SOCKET" \
+    --state="$STATE_FILE" > /tmp/tailscaled.log 2>&1 &
+
 sleep 2
 
+# Авторизація (якщо файл стану порожній, попросить лінк)
 echo "--- Авторизація Tailscale ---"
-sudo tailscale --socket=/var/run/tailscale/tailscaled.sock up --force-reauth
+"$BIN_DIR/tailscale" --socket="$SOCKET" up --force-reauth
 
-echo "--- Монтування Google Drive (2TB+) ---"
-export PATH=$PATH:~/bin
-if [ ! -L /usr/bin/fusermount3 ]; then
-    sudo ln -s /usr/bin/fusermount /usr/bin/fusermount3
-fi
+echo "--- Монтування Google Drive ---"
 mkdir -p ~/google-drive
-# Монтуємо у фоні з кешем для великих файлів
-rclone mount gdrive: ~/google-drive --vfs-cache-mode writes --daemon
+# Використовуємо локальний rclone
+if [ -f "$HOME/.config/rclone/rclone.conf" ]; then
+    "$BIN_DIR/rclone" mount gdrive: ~/google-drive --vfs-cache-mode writes --daemon
+else
+    echo "УВАГА: Конфігурація rclone не знайдена. Запустіть 'rclone config' або додайте rclone.conf"
+fi
 
 echo "--- Запуск вартового (Keep-Alive) ---"
-chmod +x ~/tailscale-setup/keep-alive-tailscale.sh
-nohup ~/tailscale-setup/keep-alive-tailscale.sh > /tmp/keepalive.log 2>&1 &
+chmod +x ./keep-alive-tailscale.sh
+nohup ./keep-alive-tailscale.sh > /tmp/keepalive.log 2>&1 &
 
 echo "--- Статус системи ---"
-sudo tailscale --socket=/var/run/tailscale/tailscaled.sock status
-df -h ~/google-drive
-
+"$BIN_DIR/tailscale" --socket="$SOCKET" status
